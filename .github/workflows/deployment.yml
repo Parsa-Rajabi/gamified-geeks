@@ -1,0 +1,38 @@
+name: Deployment Pipeline
+
+on:
+    push:
+        branches: ["master"]
+    pull_request:
+        branches: ["master"]
+
+jobs:
+    deploy:
+
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Install sshpass
+              run: sudo apt-get install -y sshpass
+
+            - name : Checkout code
+              uses: actions/checkout@v2
+
+            - name: SSH login and commands
+            # Since we are using a root password instead of a strict ssh public cryptography system, need to instal sshpass
+            # <--'ENDSSH' is a here document which pass a multi-line string as input to ssh. 
+            # This allows us to execute multiple commands on the remote machine within the context of the ssh session
+              run: |
+                sshpass -p "${{ secrets.DROPLET_SSH }}" ssh -o StrictHostKeyChecking=no root@${{ secrets.DROPLET_IP }} <<-'ENDSSH'
+                    cd /root/project-6-gamified-coding-practice-platform-gamifygeeks
+                    pwd
+                    ls
+                    git checkout master
+                    git pull 
+                    cd src
+                    docker-compose -f docker-compose.prod.yml down
+                    docker volume rm $(docker volume ls -q)
+                    docker rmi $(docker images -q)
+                    docker-compose -f docker-compose.prod.yml up -d
+                    
+                ENDSSH

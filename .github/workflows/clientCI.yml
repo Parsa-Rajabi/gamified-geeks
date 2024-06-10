@@ -1,0 +1,54 @@
+name: Front-end Integration Test pipeline
+
+on:
+    push:
+        branches: ["master"]
+    pull_request:
+        branches: ["master"]
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v3
+
+            - name: Create client.env file
+              run: |
+                  touch src/client/.env
+
+            - name: Create server .env file
+              run: |
+                  echo OPENAI_API_Key=${{ secrets.OPENAI_API_Key }} >> src/server/.env
+                  echo JWT_SECRET=${{ secrets.JWT_SECRET }} >> src/server/.env
+                  echo JWT_EXPIRES_SEC=${{ secrets.JWT_EXPIRES_SEC }} >> src/server/.env
+                  echo BCRYPT_SALT_ROUNDS=${{ secrets.BCRYPT_SALT_ROUNDS }} >> src/server/.env
+                  echo HOST_PORT=${{ secrets.HOST_PORT }} >> src/server/.env
+                  echo EMAIL=${{ secrets.EMAIL }} >> src/server/.env
+                  echo EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }} >> src/server/.env
+
+            - name: Setup Chrome Driver
+              uses: browser-actions/setup-chrome@latest
+              with:
+                  chrome-version: stable
+
+            - name: Build Docker Containers
+              working-directory: ./src
+              run: |
+                  docker-compose -f docker-compose.dev.yml up -d
+                  sleep 20
+
+            - name: Install Testing Dependencies
+              working-directory: "./test/client"
+              run: npm install
+
+            - name: Run tests with Selenium
+              working-directory: "./test/client"
+              run: npx mocha test_suites/
+
+            - name: Archive Screenshots
+              if: always()
+              uses: actions/upload-artifact@v2
+              with:
+                  name: screenshots
+                  path: test/client/*.png

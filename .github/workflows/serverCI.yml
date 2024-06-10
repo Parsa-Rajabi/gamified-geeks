@@ -1,0 +1,42 @@
+# This workflow will build the Docker images and run the test before any PR or master pushes
+name: Back-end Test pipeline
+
+# Workflow will be triggered when code is pushed to master branch as well as when a pull request is opened to master
+on:
+    push:
+        branches: ["master"]
+    pull_request:
+        branches: ["master"]
+
+jobs:
+    build:
+        # Specifiess the type of machine to run the job on
+        runs-on: ubuntu-latest
+
+        # steps are the sequence of tasks that the machine will follow
+        steps:
+            # this checks out the repository code
+            - uses: actions/checkout@v3
+
+            - name: Build and run back-end tests with Docker Compose
+              uses: actions/setup-node@v3
+
+            - name: Create client .env file
+              run: |
+                  touch src/client/.env
+            - name: Create server .env flie
+              run: |
+                  echo OPENAI_API_Key=${{ secrets.OPENAI_API_Key }} >> src/server/.env
+                  echo JWT_SECRET=${{ secrets.JWT_SECRET }} >> src/server/.env
+                  echo JWT_EXPIRES_SEC=${{ secrets.JWT_EXPIRES_SEC }} >> src/server/.env
+                  echo BCRYPT_SALT_ROUNDS=${{ secrets.BCRYPT_SALT_ROUNDS }} >> src/server/.env
+                  echo HOST_PORT=${{ secrets.HOST_PORT }} >> src/server/.env
+                  echo EMAIL=${{ secrets.EMAIL }} >> src/server/.env
+                  echo EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }} >> src/server/.env
+
+            - name: Build Docker Compose and Run Test Suites
+              working-directory: ./src
+              run: |
+                  docker compose -f docker-compose.dev.yml up -d
+                  sleep 20
+                  docker-compose -f docker-compose.dev.yml run server npm test
